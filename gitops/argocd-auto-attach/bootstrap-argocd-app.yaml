@@ -1,0 +1,32 @@
+# Bootstrap ("app of apps") - the ONLY file you apply by hand:
+#   kubectl apply -f bootstrap-argocd-app.yaml (or use the Argo CD UI)
+# It points Argo CD at the argocd/ folder, which in turn creates the
+# `infra` Application and the `demo-app` ApplicationSet.
+#
+# >>> CHANGE FOR YOUR LAB <<<
+#   1. repoURL        -> URL of YOUR fork of vmware/vks-samples. Argo CD syncs from Git,
+#                        so it must be a repo you can push your edits to.
+#                        (Apply the same change in argocd/infra-argocd-app.yaml and argocd/demo-app-argocd-applicationset.yaml.)
+#   2. namespace      -> your vSphere Supervisor namespace (the one Argo CD runs in).
+#   3. destination.name / destination.namespace
+#                     -> the same Supervisor namespace. `destination.name` is the name
+#                        under which the Supervisor is registered in Argo CD
+#                        (check with: argocd cluster list).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: my-ns                 # CHANGE ME: your Supervisor namespace
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/vmware/vks-samples.git   # CHANGE ME: your fork's URL
+    targetRevision: main               # CHANGE ME if you use a different branch
+    path: gitops/argocd-auto-attach/argocd
+  destination:
+    name: my-ns                    # CHANGE ME: Argo CD cluster name of your Supervisor namespace
+    namespace: my-ns               # CHANGE ME: your Supervisor namespace
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,49 @@
+# Auto-attach: any VKS cluster labelled env=dev or env=prod is registered with
+# Argo CD automatically, and tagged with the same env so apps can target it.
+#
+# >>> CHANGE FOR YOUR LAB <<<
+#   Replace `my-ns` with your Supervisor namespace in BOTH policies, in two places each:
+#   metadata.namespace and rules[].namespaces.nameSelector.
+apiVersion: argocd-service.vsphere.vmware.com/v1alpha1
+kind: EntityManagementPolicy
+metadata:
+  name: auto-attach-dev-policy
+  namespace: my-ns                 # CHANGE ME: your Supervisor namespace
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  enabled: true
+  rules:
+    - apiGroup: cluster.x-k8s.io
+      kind: Cluster
+      namespaces:
+        nameSelector: ["my-ns"]   # CHANGE ME: your Supervisor namespace
+      labelSelector:
+        matchLabels:
+          env: dev
+  config:
+    secretLabels:
+      env: dev
+    argoCDProject: default
+---
+apiVersion: argocd-service.vsphere.vmware.com/v1alpha1
+kind: EntityManagementPolicy
+metadata:
+  name: auto-attach-prod-policy
+  namespace: my-ns                 # CHANGE ME: your Supervisor namespace
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  enabled: true
+  rules:
+    - apiGroup: cluster.x-k8s.io
+      kind: Cluster
+      namespaces:
+        nameSelector: ["my-ns"]   # CHANGE ME: your Supervisor namespace
+      labelSelector:
+        matchLabels:
+          env: prod
+  config:
+    secretLabels:
+      env: prod
+    argoCDProject: default

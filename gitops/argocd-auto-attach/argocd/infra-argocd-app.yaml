@@ -1,0 +1,42 @@
+# Infrastructure: everything under infra/ is applied to the Supervisor namespace.
+#   infra/platform/  -> RBAC + auto-attach policies (applied first, wave -1)
+#   infra/<env>/     -> one folder per environment: a VKS cluster + a KubeVM Service VM
+#
+# >>> CHANGE FOR YOUR LAB <<<  (see the CHANGE ME markers below)
+#   - namespace / destination -> your Supervisor namespace
+#   - repoURL                 -> URL of your fork of vmware/vks-samples
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: infra
+  namespace: my-ns                # CHANGE ME: your Supervisor namespace
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io   # deleting this app deletes the clusters and VMs
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/vmware/vks-samples.git   # CHANGE ME: your fork's URL
+    targetRevision: main               # CHANGE ME if you use a different branch
+    path: gitops/argocd-auto-attach/infra
+    directory:
+      recurse: true
+  destination:
+    name: my-ns                    # CHANGE ME: Argo CD cluster name of your Supervisor namespace
+    namespace: my-ns               # CHANGE ME: your Supervisor namespace
+  ignoreDifferences:
+    - group: vmoperator.vmware.com
+      kind: VirtualMachine
+      jsonPointers:
+        - /spec/volumes
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - RespectIgnoreDifferences=true
+    retry:                        # retry failed syncs instead of waiting for a new commit
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 3m

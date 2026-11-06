@@ -1,0 +1,87 @@
+# VM for the "dev" environment, created with KubeVM Service: a cloud-init Secret, the VM,
+# and a LoadBalancer service exposing the web page the VM serves on port 80.
+#
+# >>> CHANGE FOR YOUR LAB <<<  (see the CHANGE ME markers below)
+#   Replace `my-ns` with your Supervisor namespace (3 places), and set the VM class,
+#   image, storage class and zone to values available in your environment.
+#   Find them with kubectl, logged in to your Supervisor namespace:
+#     kubectl get virtualmachineclass -n <namespace>
+#     kubectl get vmi -n <namespace>          # VM images; use the vmi-... name
+#     kubectl get storageclass
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dev-vm-cloud-init
+  namespace: my-ns                 # CHANGE ME: your Supervisor namespace
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"   # must exist before the VM boots
+  labels:
+    vm-selector: dev-vm
+stringData:
+  user-data: |
+    #cloud-config
+    hostname: dev-vm
+    write_files:
+      - path: /srv/www/index.html
+        content: |
+          <!doctype html>
+          <html><head><meta charset="utf-8"><title>VM APP - DEV</title>
+          <style>
+            body { margin:0; height:100vh; display:flex; align-items:center; justify-content:center;
+                   font-family:Arial, sans-serif; color:#fff; background:#1d6fa5; }
+            .card { text-align:center; } h1 { font-size:4em; margin:0; } p { font-size:1.6em; }
+          </style></head>
+          <body><div class="card">
+            <h1>ENV: DEV</h1>
+            <p>App running on a KubeVM Service VM</p>
+            <p>Deployed by Argo CD with KubeVM Service</p>
+          </div></body></html>
+      - path: /etc/systemd/system/web.service
+        content: |
+          [Unit]
+          Description=Legacy web page
+          After=network-online.target
+          [Service]
+          ExecStart=/usr/bin/python3 -m http.server 80 --directory /srv/www
+          Restart=always
+          [Install]
+          WantedBy=multi-user.target
+    runcmd:
+      - systemctl daemon-reload
+      - systemctl enable --now web.service
+---
+apiVersion: vmoperator.vmware.com/v1alpha5
+kind: VirtualMachine
+metadata:
+  name: dev-vm
+  namespace: my-ns                 # CHANGE ME: your Supervisor namespace
+  labels:
+    env: dev
+    vm-selector: dev-vm
+    topology.kubernetes.io/zone: z-wld-a   # CHANGE ME: a vSphere zone assigned to your namespace (kubectl get zones), or remove this label
+spec:
+  className: best-effort-medium        # CHANGE ME: a VM class bound to your namespace
+  # Friendly image name: Ubuntu 22.04 LTS Minimal - Jammy
+  imageName: vmi-b59a338f867943c6d     # CHANGE ME: image ID differs per content library (kubectl get vmi -n <namespace>)
+  storageClass: vsan-default-storage-policy   # CHANGE ME: a storage class assigned to your namespace
+  powerState: PoweredOn
+  bootstrap:
+    cloudInit:
+      rawCloudConfig:
+        name: dev-vm-cloud-init
+        key: user-data
+---
+apiVersion: vmoperator.vmware.com/v1alpha3
+kind: VirtualMachineService
+metadata:
+  name: dev-vm
+  namespace: my-ns                 # CHANGE ME: your Supervisor namespace
+spec:
+  type: LoadBalancer
+  selector:
+    vm-selector: dev-vm
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80
