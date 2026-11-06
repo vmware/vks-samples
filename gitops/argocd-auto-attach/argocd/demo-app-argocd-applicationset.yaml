@@ -1,0 +1,46 @@
+# One demo-app per attached VKS cluster.
+# The cluster's env label (dev/prod) picks the folder: apps/demo-app/<env>
+#
+# >>> CHANGE FOR YOUR LAB <<<  (see the CHANGE ME markers below)
+#   - namespace -> your Supervisor/vSphere namespace
+#   - repoURL   -> URL of your fork of vmware/vks-samples
+# The app is only created once the cluster is attached, so it never deploys too early.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: demo-app
+  namespace: my-ns                # CHANGE ME: your Supervisor namespace
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - clusters:
+        selector:
+          matchExpressions:
+            - key: env
+              operator: In
+              values: [dev, prod]
+  template:
+    metadata:
+      name: 'app-{{index .metadata.labels "env"}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/vmware/vks-samples.git   # CHANGE ME: your fork's URL
+        targetRevision: main                                  # CHANGE ME if you use a different branch
+        path: 'gitops/argocd-auto-attach/apps/demo-app/{{index .metadata.labels "env"}}'
+      destination:
+        server: '{{.server}}'
+        namespace: app
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+        retry:                      # covers the gap while worker nodes are still joining
+          limit: 10
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 5m

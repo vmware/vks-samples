@@ -1,0 +1,53 @@
+# VKS cluster for the "dev" environment. Its `env: dev` label makes Argo CD attach it
+# automatically and deploy apps/demo-app/dev to it.
+#
+# >>> CHANGE FOR YOUR LAB <<<  (see the CHANGE ME markers below)
+#   Find valid values with kubectl, logged in to your Supervisor namespace:
+#     kubectl get clusterclass -n vmware-system-vks-public     # classRef.name
+#     kubectl get kubernetesrelease                            # topology.version
+#     kubectl get virtualmachineclass -n <namespace>           # vmClass
+#     kubectl get storageclass                                 # storageClass
+#   To change the cluster's OS (photon/ubuntu), edit the os-name annotations further down.
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: vks-dev
+  namespace: my-ns             # CHANGE ME: your Supervisor namespace
+  labels:
+    env: dev                       # Do not change: this label triggers auto-attach (see infra/platform/auto-attach-policies.yaml)
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+        - 10.95.0.0/16
+    services:
+      cidrBlocks:
+        - 10.96.0.0/12
+    serviceDomain: cluster.local
+  topology:
+    classRef:
+      name: builtin-generic-v3.8.0     # CHANGE ME if needed: ClusterClass available in your environment
+      namespace: vmware-system-vks-public
+    version: v1.37.1---vmware.4-vkr.1  # CHANGE ME: a Kubernetes release available in your environment
+    variables:
+      - name: vmClass
+        value: best-effort-medium          # CHANGE ME: a VM class bound to your namespace
+      - name: storageClass
+        value: vsan-default-storage-policy # CHANGE ME: a storage class assigned to your namespace
+      - name: vsphereOptions
+        value:
+          persistentVolumes:
+            defaultStorageClass: vsan-default-storage-policy   # CHANGE ME: same storage class as above
+    controlPlane:
+      replicas: 1
+      metadata:
+        annotations:
+          run.tanzu.vmware.com/resolve-os-image: os-name=photon
+    workers:
+      machineDeployments:
+        - class: node-pool
+          name: vks-dev-np
+          replicas: 1
+          metadata:
+            annotations:
+              run.tanzu.vmware.com/resolve-os-image: os-name=photon

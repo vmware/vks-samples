@@ -1,0 +1,88 @@
+# Container app on VKS. The page is served from the ConfigMap below,
+# so changing text/color here updates the page without a pod restart.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-page
+data:
+  index.html: |
+    <!doctype html>
+    <html><head><meta charset="utf-8"><title>VKS GitOps Demo - PROD</title>
+    <style>
+      body { margin:0; height:100vh; display:flex; align-items:center; justify-content:center;
+             font-family:Arial, sans-serif; color:#fff; background:#1e8449; }
+      .card { text-align:center; } h1 { font-size:4em; margin:0; } p { font-size:1.6em; margin:.4em 0; }
+      .pod { font-family:monospace; opacity:.8; }
+    </style></head>
+    <body><div class="card">
+      <h1>ENV: PROD</h1>
+      <p>Deployed by Argo CD on VKS</p>
+      <p class="pod">Served by cluster: vks-prod</p>
+    </div></body></html>
+  default.conf: |
+    server {
+      listen 8080;
+      location / {
+        root /usr/share/nginx/html;
+        index index.html;
+        ssi on;
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app
+  labels:
+    app: demo-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: demo-app
+  template:
+    metadata:
+      labels:
+        app: demo-app
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: page
+              mountPath: /usr/share/nginx/html
+            - name: page
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: page
+          configMap:
+            name: demo-page
+            items:
+              - key: index.html
+                path: index.html
+              - key: default.conf
+                path: default.conf
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-app
+spec:
+  type: LoadBalancer
+  selector:
+    app: demo-app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
